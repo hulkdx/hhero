@@ -64,7 +64,7 @@ static void win32UpdateWindow(HDC deviceContext, RECT *windowRect,
                               int x, int y, int width, int height)
 {
   int windowWidth = windowRect->right - windowRect->left;
-  int windowWidth = windowRect->bottom - windowRect->top;
+  int windowHeight = windowRect->bottom - windowRect->top;
 
   StretchDIBits(deviceContext,
                 0, 0, bitmapWidth, bitmapHeight,
