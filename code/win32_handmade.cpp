@@ -36,7 +36,7 @@ MainWindowCallback(HWND   window,
       int height = paint.rcPaint.bottom - paint.rcPaint.top;
       int width  = paint.rcPaint.right - paint.rcPaint.left;
       PatBlt(deviceContext, x, y, width, height, WHITENESS);
-      BOOL EndPaint(window, &paint);
+      EndPaint(window, &paint);
     } break;
 
     default:
