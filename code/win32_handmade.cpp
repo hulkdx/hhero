@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <stdint.h>
 
-struct Win32_offscreen_buffer 
+struct Win32_offscreen_buffer
 {
     BITMAPINFO info;
     void      *memory;
@@ -14,10 +14,10 @@ struct Win32_offscreen_buffer
 static bool                   running;
 static Win32_offscreen_buffer globalBackBuffer;
 
-static void renderWeirdGradient(Win32_offscreen_buffer buffer, int xOffset, int yOffset) 
+static void renderWeirdGradient(Win32_offscreen_buffer buffer, int xOffset, int yOffset)
 {
     
-    uint8_t *row = (uint8_t *) buffer.bitmapMemory;
+    uint8_t *row = (uint8_t *) buffer.memory;
     for (int y = 0; y < buffer.height; ++y)
     {
         uint32_t *pixel = (uint32_t *)row;
@@ -60,7 +60,7 @@ static void Win32ResizeDIBSection(Win32_offscreen_buffer *buffer, int width, int
     int bitmapMemorySize = buffer->bytePerPixel * buffer->width * buffer->height;
     buffer->memory = VirtualAlloc(0, bitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
     buffer->pitch = width * buffer->bytePerPixel;
-    
+
 }
 
 static void Win32DisplayBufferInWindow(HDC deviceContext, RECT windowRect,
@@ -86,7 +86,7 @@ Win32MainWindowCallback(HWND   window,
 {
     LRESULT result = 0;
 
-    switch (message) 
+    switch (message)
     {
         case WM_SIZE:
         {
@@ -173,7 +173,7 @@ WinMain(HINSTANCE instance,
                 MSG message;
                 while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
                 {
-                    if (message.message == WM_QUIT) 
+                    if (message.message == WM_QUIT)
                     {
                         running = false;
                     }
@@ -188,7 +188,7 @@ WinMain(HINSTANCE instance,
                 GetClientRect(window, &clientRect);
                 int windowWidth = clientRect.right - clientRect.left;
                 int windowHeight = clientRect.bottom - clientRect.top;
-                Win32DisplayBufferInWindow(deviceContext, clientRect, 
+                Win32DisplayBufferInWindow(deviceContext, clientRect,
                     globalBackBuffer, 0, 0, windowWidth, windowHeight);
                 ReleaseDC(window, deviceContext);
 
