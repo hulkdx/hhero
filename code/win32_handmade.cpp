@@ -18,8 +18,34 @@ struct Win32_window_dimension
     int height;
 };
 
-DWORD WINAPI XInputGetState(DWORD dwUserIndex, XINPUT_STATE* pState);
-DWORD WINAPI XInputSetState(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration);
+// Define XInputGetState
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub) 
+{
+    return 0;
+}
+static xinput_get_state *XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
+// Define XInputSetState
+#define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
+typedef X_INPUT_SET_STATE(x_input_set_state);
+X_INPUT_SET_STATE(XInputSetStateStub) 
+{
+    return 0;
+}
+static xinput_set_state *XInputSetState_ = XInputSetStateStub;
+#define XInputSetState XInputSetState_
+
+static void win32LoadXInput()
+{
+    HMODULE xInputLibrary = LoadLibrary("xinput1_3.dll"); // on more machine
+    if (xInputLibrary)
+    {
+        XInputGetState = (x_input_get_state*) GetProcAddress(xInputLibrary, "XInputGetState");
+        XInputSetState = (x_input_set_state*) GetProcAddress(xInputLibrary, "XInputSetState");
+    }
+}
 
 static bool                   globalRunning;
 static Win32_offscreen_buffer globalBackBuffer;
@@ -160,6 +186,7 @@ WinMain(HINSTANCE instance,
         LPSTR     commandLine,
         int       showCode)
 {
+    win32LoadXInput();
     WNDCLASS windowClass = {};
 
     Win32ResizeDIBSection(&globalBackBuffer, 1280, 720);
