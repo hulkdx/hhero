@@ -18,25 +18,28 @@ struct Win32_window_dimension
     int height;
 };
 
+DWORD WINAPI XInputGetState(DWORD dwUserIndex, XINPUT_STATE* pState);
+DWORD WINAPI XInputSetState(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration);
+
 static bool                   globalRunning;
 static Win32_offscreen_buffer globalBackBuffer;
 
 
-Win32_window_dimension Win32GetWindowDimension (HWND window) 
+Win32_window_dimension Win32GetWindowDimension (HWND window)
 {
     Win32_window_dimension result;
-    
+
     RECT clientRect;
     GetClientRect(window, &clientRect);
     result.height = clientRect.bottom - clientRect.top;
     result.width  = clientRect.right - clientRect.left;
-    
+
     return result;
 }
 
 static void renderWeirdGradient(Win32_offscreen_buffer buffer, int xOffset, int yOffset)
 {
-    
+
     uint8_t *row = (uint8_t *) buffer.memory;
     for (int y = 0; y < buffer.height; ++y)
     {
@@ -84,7 +87,7 @@ static void Win32ResizeDIBSection(Win32_offscreen_buffer *buffer, int width, int
 
 }
 
-static void Win32DisplayBufferInWindow(HDC deviceContext, 
+static void Win32DisplayBufferInWindow(HDC deviceContext,
                                        int windowWidth, int windowHeight,
                                        Win32_offscreen_buffer buffer,
                                        int x, int y, int width, int height)
@@ -137,7 +140,7 @@ Win32MainWindowCallback(HWND   window,
 
             Win32_window_dimension dimension = Win32GetWindowDimension(window);
 
-            Win32DisplayBufferInWindow(deviceContext, dimension.width, dimension.height, 
+            Win32DisplayBufferInWindow(deviceContext, dimension.width, dimension.height,
                 globalBackBuffer, x, y, width, height);
             EndPaint(window, &paint);
         } break;
@@ -158,9 +161,9 @@ WinMain(HINSTANCE instance,
         int       showCode)
 {
     WNDCLASS windowClass = {};
-    
+
     Win32ResizeDIBSection(&globalBackBuffer, 1280, 720);
-    
+
     windowClass.style = CS_OWNDC|CS_HREDRAW|CS_VREDRAW;
     windowClass.lpfnWndProc = Win32MainWindowCallback;
     windowClass.hInstance = instance;
@@ -197,15 +200,15 @@ WinMain(HINSTANCE instance,
                     TranslateMessage(&message);
                     DispatchMessage(&message);
                 }
-                
+
                 for (DWORD controllerIndex=0; controllerIndex< XUSER_MAX_COUNT; controllerIndex++ )
                 {
                     XINPUT_STATE controllerState;
-                    if (XInputGetState(controllerIndex, &controllerState) == ERROR_SUCCESS) 
+                    if (XInputGetState(controllerIndex, &controllerState) == ERROR_SUCCESS)
                     {
                         // Controller is plugged in
                         XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
-                        
+
                         bool up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
                         bool down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
                         bool left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
@@ -218,25 +221,25 @@ WinMain(HINSTANCE instance,
                         bool bButton = (pad->wButtons & XINPUT_GAMEPAD_B);
                         bool xButton = (pad->wButtons & XINPUT_GAMEPAD_X);
                         bool yButton = (pad->wButtons & XINPUT_GAMEPAD_Y);
-                        
+
                         uint16_t stickX = pad->sThumbLX;
                         uint16_t stickY = pad->sThumbLY;
-                    } 
+                    }
                     else
                     {
                         // The controller is not available.
                     }
                 }
-                
+
                 renderWeirdGradient(globalBackBuffer, xOffset, 0);
                 xOffset++;
 
                 HDC deviceContext = GetDC(window);
                 Win32_window_dimension dimension = Win32GetWindowDimension(window);
-                Win32DisplayBufferInWindow(deviceContext, 
+                Win32DisplayBufferInWindow(deviceContext,
                                            dimension.width, dimension.height,
-                                           globalBackBuffer, 0, 0, 
-                                           dimension.windowWidth, dimension.windowHeight);
+                                           globalBackBuffer, 0, 0,
+                                           dimension.width, dimension.height);
                 ReleaseDC(window, deviceContext);
 
             }
