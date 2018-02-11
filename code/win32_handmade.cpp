@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
+#include <xinput.h>
 
 struct Win32_offscreen_buffer
 {
@@ -11,8 +12,27 @@ struct Win32_offscreen_buffer
     int        bytePerPixel;
 };
 
-static bool                   running;
+struct Win32_window_dimension
+{
+    int width;
+    int height;
+};
+
+static bool                   globalRunning;
 static Win32_offscreen_buffer globalBackBuffer;
+
+
+Win32_window_dimension Win32GetWindowDimension (HWND window) 
+{
+    Win32_window_dimension result;
+    
+    RECT clientRect;
+    GetClientRect(window, &clientRect);
+    result.height = clientRect.bottom - clientRect.top;
+    result.width  = clientRect.right - clientRect.left;
+    
+    return result;
+}
 
 static void renderWeirdGradient(Win32_offscreen_buffer buffer, int xOffset, int yOffset)
 {
@@ -44,6 +64,7 @@ static void Win32ResizeDIBSection(Win32_offscreen_buffer *buffer, int width, int
 
     buffer->width = width;
     buffer->height = height;
+    buffer->bytePerPixel = 4;
 
     buffer->info.bmiHeader.biSize           = sizeof(buffer->info.bmiHeader);
     buffer->info.bmiHeader.biWidth          = buffer->width;
@@ -63,16 +84,15 @@ static void Win32ResizeDIBSection(Win32_offscreen_buffer *buffer, int width, int
 
 }
 
-static void Win32DisplayBufferInWindow(HDC deviceContext, RECT windowRect,
+static void Win32DisplayBufferInWindow(HDC deviceContext, 
+                                       int windowWidth, int windowHeight,
                                        Win32_offscreen_buffer buffer,
                                        int x, int y, int width, int height)
 {
-    int windowWidth  = windowRect.right  - windowRect.left;
-    int windowHeight = windowRect.bottom - windowRect.top;
-
+    // TODO aspect ratio
     StretchDIBits(deviceContext,
-                0, 0, buffer.width, buffer.height,
                 0, 0, windowWidth, windowHeight,
+                0, 0, buffer.width, buffer.height,
                 buffer.memory,
                 &buffer.info,
                 DIB_RGB_COLORS, SRCCOPY);
@@ -90,12 +110,6 @@ Win32MainWindowCallback(HWND   window,
     {
         case WM_SIZE:
         {
-            RECT clientRect;
-            GetClientRect(window, &clientRect);
-            int height = clientRect.bottom - clientRect.top;
-            int width  = clientRect.right - clientRect.left;
-            Win32ResizeDIBSection(&globalBackBuffer, width, height);
-            OutputDebugStringA("WM_SIZE\n");
         } break;
         case WM_DESTROY:
         {
@@ -103,7 +117,7 @@ Win32MainWindowCallback(HWND   window,
         } break;
         case WM_CLOSE:
         {
-            running = false;
+            globalRunning = false;
             OutputDebugStringA("WM_CLOSE\n");
 
         } break;
@@ -121,10 +135,10 @@ Win32MainWindowCallback(HWND   window,
             int height = paint.rcPaint.bottom - paint.rcPaint.top;
             int width  = paint.rcPaint.right - paint.rcPaint.left;
 
-            RECT clientRect;
-            GetClientRect(window, &clientRect);
+            Win32_window_dimension dimension = Win32GetWindowDimension(window);
 
-            Win32DisplayBufferInWindow(deviceContext, clientRect, globalBackBuffer, x, y, width, height);
+            Win32DisplayBufferInWindow(deviceContext, dimension.width, dimension.height, 
+                globalBackBuffer, x, y, width, height);
             EndPaint(window, &paint);
         } break;
 
@@ -144,6 +158,9 @@ WinMain(HINSTANCE instance,
         int       showCode)
 {
     WNDCLASS windowClass = {};
+    
+    Win32ResizeDIBSection(&globalBackBuffer, 1280, 720);
+    
     windowClass.style = CS_OWNDC|CS_HREDRAW|CS_VREDRAW;
     windowClass.lpfnWndProc = Win32MainWindowCallback;
     windowClass.hInstance = instance;
@@ -166,30 +183,60 @@ WinMain(HINSTANCE instance,
                                      0);
         if (window)
         {
-            running = true;
+            globalRunning = true;
             int xOffset = 0;
-            while (running)
+            while (globalRunning)
             {
                 MSG message;
                 while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
                 {
                     if (message.message == WM_QUIT)
                     {
-                        running = false;
+                        globalRunning = false;
                     }
                     TranslateMessage(&message);
                     DispatchMessage(&message);
                 }
+                
+                for (DWORD controllerIndex=0; controllerIndex< XUSER_MAX_COUNT; controllerIndex++ )
+                {
+                    XINPUT_STATE controllerState;
+                    if (XInputGetState(controllerIndex, &controllerState) == ERROR_SUCCESS) 
+                    {
+                        // Controller is plugged in
+                        XINPUT_GAMEPAD *pad = &controllerState.Gamepad;
+                        
+                        bool up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+                        bool down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+                        bool left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+                        bool right = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+                        bool start = (pad->wButtons & XINPUT_GAMEPAD_START);
+                        bool back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
+                        bool leftShoulder = (pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+                        bool rightShoulder = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+                        bool aButton = (pad->wButtons & XINPUT_GAMEPAD_A);
+                        bool bButton = (pad->wButtons & XINPUT_GAMEPAD_B);
+                        bool xButton = (pad->wButtons & XINPUT_GAMEPAD_X);
+                        bool yButton = (pad->wButtons & XINPUT_GAMEPAD_Y);
+                        
+                        uint16_t stickX = pad->sThumbLX;
+                        uint16_t stickY = pad->sThumbLY;
+                    } 
+                    else
+                    {
+                        // The controller is not available.
+                    }
+                }
+                
                 renderWeirdGradient(globalBackBuffer, xOffset, 0);
                 xOffset++;
 
                 HDC deviceContext = GetDC(window);
-                RECT clientRect;
-                GetClientRect(window, &clientRect);
-                int windowWidth = clientRect.right - clientRect.left;
-                int windowHeight = clientRect.bottom - clientRect.top;
-                Win32DisplayBufferInWindow(deviceContext, clientRect,
-                    globalBackBuffer, 0, 0, windowWidth, windowHeight);
+                Win32_window_dimension dimension = Win32GetWindowDimension(window);
+                Win32DisplayBufferInWindow(deviceContext, 
+                                           dimension.width, dimension.height,
+                                           globalBackBuffer, 0, 0, 
+                                           dimension.windowWidth, dimension.windowHeight);
                 ReleaseDC(window, deviceContext);
 
             }
