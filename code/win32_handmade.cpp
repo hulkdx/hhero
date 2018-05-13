@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <stdint.h>
 #include <xinput.h>
-#include <dsound .h>
+#include <dsound.h>
 
 typedef int8_t int8;
 typedef int16_t int16;
@@ -54,7 +54,7 @@ static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
-typedef DIRECT_SOUND_CREATE(direct_sound_create)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 
 static void win32LoadXInput()
@@ -72,56 +72,59 @@ static void win32LoadXInput()
     }
 }
 
-static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize) 
+
+static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize)
 {
     // Load the libary:
     HMODULE dSoundLibrary = LoadLibraryA("dsound.dll");
-    
+
     if (dSoundLibrary) {
         // Get a DirectSound object
         direct_sound_create *directSoundCreate = (direct_sound_create *) GetProcAddress(dSoundLibrary, "DirectSoundCreate");
-        
+
         LPDIRECTSOUND directSound;
-        if (directSoundCreate && SUCCEEDED(directSoundCreate(0, &directSound, 0))) 
+        if (directSoundCreate && SUCCEEDED(directSoundCreate(0, &directSound, 0)))
         {
-            WAVEFORMATEX waveFormat    = {}; 
-            waveFormat.wFormatTag      = WAVE_FORMAT_PCM;                 
-            waveFormat.nChannels       = 2;              
+            WAVEFORMATEX waveFormat    = {};
+            waveFormat.wFormatTag      = WAVE_FORMAT_PCM;
+            waveFormat.nChannels       = 2;
             waveFormat.nSamplesPerSec  = samplesPerSec;
             waveFormat.wBitsPerSample  = 16;
             waveFormat.nBlockAlign     = waveFormat.nChannels * waveFormat.wBitsPerSample / 8;
             waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
             waveFormat.cbSize          = 0;
             // cooprativemode
-            if (SUCCEEDED(directSound->SetCooprativeLevel(window, DSSCL_PRIORITY))) 
+            if (SUCCEEDED(directSound->SetCooperativeLevel(window, DSSCL_PRIORITY)))
             {
                 // create primary buffer
-                LPCDSBUFFERDESC bufferDescription = {};
+                DSBUFFERDESC bufferDescription = {};
                 bufferDescription.dwSize  = sizeof(bufferDescription);
                 bufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
-                
+
                 LPDIRECTSOUNDBUFFER primaryBuffer;
-                if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &primaryBuffer, 0))) 
+                if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &primaryBuffer, 0)))
                 {
                     if (SUCCEEDED(primaryBuffer->SetFormat(&waveFormat)))
                     {
                         //Note: set the format of primary buffer
+                        OutputDebugStringA("primary buffer created successfully");
                     }
                 }
 
             }
-            
+
             // create secondary buffer
-            LPCDSBUFFERDESC bufferDescription = {};
+            DSBUFFERDESC bufferDescription = {};
             bufferDescription.dwSize  = sizeof(bufferDescription);
             bufferDescription.dwFlags = 0;
             bufferDescription.dwBufferBytes = bufferSize;
             bufferDescription.lpwfxFormat = &waveFormat;
-            
-            
+
+
             LPDIRECTSOUNDBUFFER secondaryBuffer;
-            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &secondaryBuffer, 0))) 
+            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &secondaryBuffer, 0)))
             {
+              OutputDebugStringA("secondary buffer created successfully");
             }
         }
     }
@@ -130,7 +133,6 @@ static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize)
 Win32_window_dimension Win32GetWindowDimension (HWND window)
 {
     Win32_window_dimension result;
-
     RECT clientRect;
     GetClientRect(window, &clientRect);
     result.height = clientRect.bottom - clientRect.top;
@@ -299,7 +301,7 @@ Win32MainWindowCallback(HWND   window,
                         if (altKeyWasDown) {
                             globalRunning = false;
                         }
-                    } break
+                    } break;
                 }
             }
         } break;
@@ -364,9 +366,9 @@ WinMain(HINSTANCE instance,
         {
             globalRunning = true;
             int xOffset = 0;
-            
+
             win32InitDSound(window, 48000, 48000*sizeof(int16)*2);
-            
+
             while (globalRunning)
             {
                 MSG message;
