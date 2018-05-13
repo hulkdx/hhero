@@ -1,6 +1,18 @@
 #include <windows.h>
 #include <stdint.h>
 #include <xinput.h>
+#include <dsound .h>
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+typedef int32 bool32;
+
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
 
 struct Win32_offscreen_buffer
 {
@@ -17,6 +29,10 @@ struct Win32_window_dimension
     int width;
     int height;
 };
+
+// Note: this is static for now
+static bool                   globalRunning;
+static Win32_offscreen_buffer globalBackBuffer;
 
 // Define XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
@@ -37,12 +53,17 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create)
+
+
 static void win32LoadXInput()
 {
     HMODULE xInputLibrary = LoadLibraryA("xinput1_3.dll"); // on more machine
     if (!xInputLibrary)
     {
-      xInputLibrary = LoadLibraryA("xinput1_4.dll");
+        // TODO: diagnostic
+        xInputLibrary = LoadLibraryA("xinput1_4.dll");
     }
     if (xInputLibrary)
     {
@@ -51,9 +72,60 @@ static void win32LoadXInput()
     }
 }
 
-static bool                   globalRunning;
-static Win32_offscreen_buffer globalBackBuffer;
+static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize) 
+{
+    // Load the libary:
+    HMODULE dSoundLibrary = LoadLibraryA("dsound.dll");
+    
+    if (dSoundLibrary) {
+        // Get a DirectSound object
+        direct_sound_create *directSoundCreate = (direct_sound_create *) GetProcAddress(dSoundLibrary, "DirectSoundCreate");
+        
+        LPDIRECTSOUND directSound;
+        if (directSoundCreate && SUCCEEDED(directSoundCreate(0, &directSound, 0))) 
+        {
+            WAVEFORMATEX waveFormat    = {}; 
+            waveFormat.wFormatTag      = WAVE_FORMAT_PCM;                 
+            waveFormat.nChannels       = 2;              
+            waveFormat.nSamplesPerSec  = samplesPerSec;
+            waveFormat.wBitsPerSample  = 16;
+            waveFormat.nBlockAlign     = waveFormat.nChannels * waveFormat.wBitsPerSample / 8;
+            waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+            waveFormat.cbSize          = 0;
+            // cooprativemode
+            if (SUCCEEDED(directSound->SetCooprativeLevel(window, DSSCL_PRIORITY))) 
+            {
+                // create primary buffer
+                LPCDSBUFFERDESC bufferDescription = {};
+                bufferDescription.dwSize  = sizeof(bufferDescription);
+                bufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+                
+                LPDIRECTSOUNDBUFFER primaryBuffer;
+                if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &primaryBuffer, 0))) 
+                {
+                    if (SUCCEEDED(primaryBuffer->SetFormat(&waveFormat)))
+                    {
+                        //Note: set the format of primary buffer
+                    }
+                }
 
+            }
+            
+            // create secondary buffer
+            LPCDSBUFFERDESC bufferDescription = {};
+            bufferDescription.dwSize  = sizeof(bufferDescription);
+            bufferDescription.dwFlags = 0;
+            bufferDescription.dwBufferBytes = bufferSize;
+            bufferDescription.lpwfxFormat = &waveFormat;
+            
+            
+            LPDIRECTSOUNDBUFFER secondaryBuffer;
+            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &secondaryBuffer, 0))) 
+            {
+            }
+        }
+    }
+}
 
 Win32_window_dimension Win32GetWindowDimension (HWND window)
 {
@@ -220,6 +292,14 @@ Win32MainWindowCallback(HWND   window,
                     {
 
                     } break;
+                    // ALT + F4
+                    case VK_F4:
+                    {
+                        bool32 altKeyWasDown = (lParam & (1 << 29));
+                        if (altKeyWasDown) {
+                            globalRunning = false;
+                        }
+                    } break
                 }
             }
         } break;
@@ -284,6 +364,9 @@ WinMain(HINSTANCE instance,
         {
             globalRunning = true;
             int xOffset = 0;
+            
+            win32InitDSound(window, 48000, 48000*sizeof(int16)*2);
+            
             while (globalRunning)
             {
                 MSG message;
