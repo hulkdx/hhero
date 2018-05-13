@@ -23,7 +23,7 @@ struct Win32_window_dimension
 typedef X_INPUT_GET_STATE(x_input_get_state);
 X_INPUT_GET_STATE(XInputGetStateStub)
 {
-    return 0;
+    return ERROR_DEVICE_NOT_CONNECTED;
 }
 static x_input_get_state *XInputGetState_ = XInputGetStateStub;
 #define XInputGetState XInputGetState_
@@ -32,17 +32,17 @@ static x_input_get_state *XInputGetState_ = XInputGetStateStub;
 typedef X_INPUT_SET_STATE(x_input_set_state);
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
-    return 0;
+    return ERROR_DEVICE_NOT_CONNECTED;
 }
 static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 static void win32LoadXInput()
 {
-    HMODULE xInputLibrary = LoadLibrary("xinput1_3.dll"); // on more machine
+    HMODULE xInputLibrary = LoadLibraryA("xinput1_3.dll"); // on more machine
     if (!xInputLibrary)
     {
-      xInputLibrary = LoadLibrary("xinput1_4.dll");
+      xInputLibrary = LoadLibraryA("xinput1_4.dll");
     }
     if (xInputLibrary)
     {
@@ -67,14 +67,14 @@ Win32_window_dimension Win32GetWindowDimension (HWND window)
     return result;
 }
 
-static void renderWeirdGradient(Win32_offscreen_buffer buffer, int xOffset, int yOffset)
+static void renderWeirdGradient(Win32_offscreen_buffer *buffer, int xOffset, int yOffset)
 {
 
-    uint8_t *row = (uint8_t *) buffer.memory;
-    for (int y = 0; y < buffer.height; ++y)
+    uint8_t *row = (uint8_t *) buffer->memory;
+    for (int y = 0; y < buffer->height; ++y)
     {
         uint32_t *pixel = (uint32_t *)row;
-        for (int x = 0; x < buffer.width; ++x)
+        for (int x = 0; x < buffer->width; ++x)
         {
             /*
             Pixel in memory: BB GG RR xx
@@ -84,7 +84,7 @@ static void renderWeirdGradient(Win32_offscreen_buffer buffer, int xOffset, int 
             // uint8_t red = (X + xOffset);
             *pixel++ = (blue | (green << 8));
         }
-        row += buffer.pitch;
+        row += buffer->pitch;
     }
 }
 
@@ -117,17 +117,16 @@ static void Win32ResizeDIBSection(Win32_offscreen_buffer *buffer, int width, int
 
 }
 
-static void Win32DisplayBufferInWindow(HDC deviceContext,
-                                       int windowWidth, int windowHeight,
-                                       Win32_offscreen_buffer buffer,
-                                       int x, int y, int width, int height)
+static void Win32DisplayBufferInWindow(Win32_offscreen_buffer *buffer
+                                       HDC deviceContext,
+                                       int windowWidth, int windowHeight)
 {
     // TODO aspect ratio
     StretchDIBits(deviceContext,
                 0, 0, windowWidth, windowHeight,
-                0, 0, buffer.width, buffer.height,
-                buffer.memory,
-                &buffer.info,
+                0, 0, buffer->width, buffer->height,
+                buffer->memory,
+                &buffer->info,
                 DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -159,6 +158,70 @@ Win32MainWindowCallback(HWND   window,
             OutputDebugStringA("WM_ACTIVATEAPP\n");
 
         } break;
+        
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            uint32_t vkCode = wParam;
+            bool wasDown = ((lParam & (1 << 30)) != 0);
+            bool isDown  = ((lParam & (1 << 31)) == 0);
+            if (isDown != wasDown) 
+            {
+                switch (vkCode) 
+                {
+                    case 'W':
+                    {
+                        
+                    } break;
+                    case 'A':
+                    {
+                        
+                    } break;
+                    case 'S':
+                    {
+                        
+                    } break;
+                    case 'D':
+                    {
+                        
+                    } break;
+                    case 'Q':
+                    {
+                        
+                    } break;
+                    case 'E':
+                    {
+                        
+                    } break;
+                    case VK_UP:
+                    {
+                        
+                    } break;
+                    case VK_LEFT:
+                    {
+                        
+                    } break;
+                    case VK_DOWN:
+                    {
+                        
+                    } break;
+                    case VK_RIGHT:
+                    {
+                        
+                    } break;
+                    case VK_ESCAPE:
+                    {
+                        
+                    } break;
+                    case VK_SPACE:
+                    {
+                        
+                    } break;
+                } break;
+            }
+        
         case WM_PAINT:
         {
             PAINTSTRUCT paint;
@@ -170,8 +233,8 @@ Win32MainWindowCallback(HWND   window,
 
             Win32_window_dimension dimension = Win32GetWindowDimension(window);
 
-            Win32DisplayBufferInWindow(deviceContext, dimension.width, dimension.height,
-                globalBackBuffer, x, y, width, height);
+            Win32DisplayBufferInWindow(&globalBackBuffer, deviceContext, 
+                dimension.width, dimension.height);
             EndPaint(window, &paint);
         } break;
 
@@ -191,7 +254,7 @@ WinMain(HINSTANCE instance,
         int       showCode)
 {
     win32LoadXInput();
-    WNDCLASS windowClass = {};
+    WNDCLASSA windowClass = {};
 
     Win32ResizeDIBSection(&globalBackBuffer, 1280, 720);
 
@@ -261,15 +324,18 @@ WinMain(HINSTANCE instance,
                         // The controller is not available.
                     }
                 }
+                XINPUT_VIBRATION vibration;
+                vibration.wLeftMotorSpeed = 60000;
+                vibration.wRightMotorSpeed = 60000;
+                XInputSetState(0, &vibration);
 
                 renderWeirdGradient(globalBackBuffer, xOffset, 0);
                 xOffset++;
 
                 HDC deviceContext = GetDC(window);
                 Win32_window_dimension dimension = Win32GetWindowDimension(window);
-                Win32DisplayBufferInWindow(deviceContext,
-                                           dimension.width, dimension.height,
-                                           globalBackBuffer, 0, 0,
+                Win32DisplayBufferInWindow(&globalBackBuffer,
+                                           deviceContext, 
                                            dimension.width, dimension.height);
                 ReleaseDC(window, deviceContext);
 
