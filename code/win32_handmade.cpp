@@ -117,7 +117,7 @@ static void Win32ResizeDIBSection(Win32_offscreen_buffer *buffer, int width, int
 
 }
 
-static void Win32DisplayBufferInWindow(Win32_offscreen_buffer *buffer
+static void Win32DisplayBufferInWindow(Win32_offscreen_buffer *buffer,
                                        HDC deviceContext,
                                        int windowWidth, int windowHeight)
 {
@@ -158,7 +158,7 @@ Win32MainWindowCallback(HWND   window,
             OutputDebugStringA("WM_ACTIVATEAPP\n");
 
         } break;
-        
+
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
@@ -167,61 +167,63 @@ Win32MainWindowCallback(HWND   window,
             uint32_t vkCode = wParam;
             bool wasDown = ((lParam & (1 << 30)) != 0);
             bool isDown  = ((lParam & (1 << 31)) == 0);
-            if (isDown != wasDown) 
+            if (isDown != wasDown)
             {
-                switch (vkCode) 
+                switch (vkCode)
                 {
                     case 'W':
                     {
-                        
+
                     } break;
                     case 'A':
                     {
-                        
+
                     } break;
                     case 'S':
                     {
-                        
+
                     } break;
                     case 'D':
                     {
-                        
+
                     } break;
                     case 'Q':
                     {
-                        
+
                     } break;
                     case 'E':
                     {
-                        
+
                     } break;
                     case VK_UP:
                     {
-                        
+
                     } break;
                     case VK_LEFT:
                     {
-                        
+
                     } break;
                     case VK_DOWN:
                     {
-                        
+
                     } break;
                     case VK_RIGHT:
                     {
-                        
+
                     } break;
                     case VK_ESCAPE:
                     {
-                        
+                      OutputDebugStringA("Escape:");
+
                     } break;
                     case VK_SPACE:
                     {
-                        
+
                     } break;
-                } break;
+                }
             }
-        
+        } break;
+
         case WM_PAINT:
         {
             PAINTSTRUCT paint;
@@ -233,7 +235,7 @@ Win32MainWindowCallback(HWND   window,
 
             Win32_window_dimension dimension = Win32GetWindowDimension(window);
 
-            Win32DisplayBufferInWindow(&globalBackBuffer, deviceContext, 
+            Win32DisplayBufferInWindow(&globalBackBuffer, deviceContext,
                 dimension.width, dimension.height);
             EndPaint(window, &paint);
         } break;
@@ -329,13 +331,13 @@ WinMain(HINSTANCE instance,
                 vibration.wRightMotorSpeed = 60000;
                 XInputSetState(0, &vibration);
 
-                renderWeirdGradient(globalBackBuffer, xOffset, 0);
+                renderWeirdGradient(&globalBackBuffer, xOffset, 0);
                 xOffset++;
 
                 HDC deviceContext = GetDC(window);
                 Win32_window_dimension dimension = Win32GetWindowDimension(window);
                 Win32DisplayBufferInWindow(&globalBackBuffer,
-                                           deviceContext, 
+                                           deviceContext,
                                            dimension.width, dimension.height);
                 ReleaseDC(window, deviceContext);
 
