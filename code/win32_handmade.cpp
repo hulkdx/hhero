@@ -152,7 +152,8 @@ static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize)
     }
 }
 
-static void win32FullSoundBuffer(win32_sound_output &output, DWORD byteToLock, DWORD bytesToWrite) {
+static void
+win32FillSoundBuffer(win32_sound_output &output, DWORD bytesToLock, DWORD bytesToWrite) {
     VOID *region1;
     DWORD region1Size;
     VOID *region2;
@@ -166,16 +167,16 @@ static void win32FullSoundBuffer(win32_sound_output &output, DWORD byteToLock, D
     {
         int16 *sampleOut = (int16 *) region1;
         DWORD region1SampleCount = region1Size/output.bytesPerSample;
-        
+
         for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++sampleIndex)
         {
             int32 sineValue = sinf(output.tSine);
             int16 sampleValue = (int16) (sineValue * output.toneVolume);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
-            
+
             output.tSine = 2.0f * PI32 * (1.0f / (real32) output.wavePeriod);
-            ++output.runningSampleindex;
+            ++output.runningSampleIndex;
         }
 
         sampleOut = (int16 *) region2;
@@ -186,12 +187,12 @@ static void win32FullSoundBuffer(win32_sound_output &output, DWORD byteToLock, D
             int16 sampleValue = (int16) (sineValue * output.toneVolume);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
-            
+
             output.tSine = 2.0f * PI32 * (1.0f / (real32) output.wavePeriod);
-            ++output.runningSampleindex;
+            ++output.runningSampleIndex;
         }
 
-        globalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+        globalSecondaryBuffer->Unlock(region1, region1Size, region2, region2Size);
     }
 }
 
@@ -450,9 +451,9 @@ WinMain(HINSTANCE instance,
             SoundOutput.tSine = 0.0f;
             SoundOutput.latencySampleCount = SoundOutput.samplesPerSecond / 15;
 
-            win32InitDSound(window, samplesPerSec, samplesPerSec*bytesPerSample);
-            win32FullSoundBuffer(SoundOutput, 0, SoundOutput.latencySampleCount * SoundOutput.bytesPerSample);
-            GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+            win32InitDSound(window, SoundOutput.samplesPerSecond, SoundOutput.samplesPerSecond*SoundOutput.bytesPerSample);
+            win32FillSoundBuffer(SoundOutput, 0, SoundOutput.latencySampleCount * SoundOutput.bytesPerSample);
+            globalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
             globalRunning = true;
             while (globalRunning)
@@ -511,14 +512,14 @@ WinMain(HINSTANCE instance,
                 // NOTE: directSound output test:
                 if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
                 {
-                    DWORD bytesToLock = (SoundOutput.runningSampleindex * SoundOutput.bytesPerSample) % SoundOutput.secondaryBufferSize;
+                    DWORD bytesToLock = (SoundOutput.runningSampleIndex * SoundOutput.bytesPerSample) % SoundOutput.secondaryBufferSize;
                     DWORD targetCursor = (playCursor +
                                          (SoundOutput.latencySampleCount * SoundOutput.bytesPerSample)) %
                                          SoundOutput.secondaryBufferSize;
                     DWORD bytesToWrite;
                     if (bytesToLock > targetCursor)
                     {
-                        bytesToWrite = secondaryBufferSize - bytesToLock;
+                        bytesToWrite = SoundOutput.secondaryBufferSize - bytesToLock;
                         bytesToWrite += targetCursor;
                     }
                     else
@@ -526,12 +527,7 @@ WinMain(HINSTANCE instance,
                         bytesToWrite = targetCursor - bytesToLock;
                     }
 
-                    win32FullSoundBuffer(SoundOutput, bytesToLock, bytesToWrite);
-                }
-
-                if (!soundIsPlaying) {
-                  globalSecondaryBuffer->Play( 0, 0, DSBPLAY_LOOPING );
-                  soundIsPlaying = true;
+                    win32FillSoundBuffer(SoundOutput, bytesToLock, bytesToWrite);
                 }
 
                 Win32_window_dimension dimension = Win32GetWindowDimension(window);
