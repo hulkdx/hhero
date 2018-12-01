@@ -33,6 +33,7 @@ struct Win32_window_dimension
 // Note: this is static for now
 static bool                   globalRunning;
 static Win32_offscreen_buffer globalBackBuffer;
+static LPDIRECTSOUNDBUFFER globalSecondaryBuffer;
 
 // Define XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
@@ -80,7 +81,7 @@ static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize)
 
     if (dSoundLibrary) {
         // Get a DirectSound object
-        direct_sound_create *directSoundCreate = (direct_sound_create *) GetProcAddress(dSoundLibrary, "DirectSoundCreate");
+          *directSoundCreate = (direct_sound_create *) GetProcAddress(dSoundLibrary, "DirectSoundCreate");
 
         LPDIRECTSOUND directSound;
         if (directSoundCreate && SUCCEEDED(directSoundCreate(0, &directSound, 0)))
@@ -121,8 +122,7 @@ static void win32InitDSound(HWND window, int32 samplesPerSec, int32 bufferSize)
             bufferDescription.lpwfxFormat = &waveFormat;
 
 
-            LPDIRECTSOUNDBUFFER secondaryBuffer;
-            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &secondaryBuffer, 0)))
+            if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &globalSecondaryBuffer, 0)))
             {
               OutputDebugStringA("secondary buffer created successfully");
             }
@@ -364,14 +364,29 @@ WinMain(HINSTANCE instance,
                                      0);
         if (window)
         {
-            globalRunning = true;
+            
+            HDC deviceContext = GetDC(window);
+            
+            // Note: graphical test
             int xOffset = 0;
+            int yOffset = 0;
+            
+            // Note: sound test
+            int samplesPerSec = 48000;
+            int toneHz = 256; 
+            uint32 runningSampleindex = 0;
+            int squareWavePeriod = samplesPerSec/toneHz;
+            int halfSquareWavePeriod = squareWavePeriod/2;
+            int bytesPerSample = sizeof(int16)*2;
+            int secondaryBufferSize = samplesPerSec * bytesPerSample;
 
-            win32InitDSound(window, 48000, 48000*sizeof(int16)*2);
+            win32InitDSound(window, samplesPerSec, samplesPerSec*bytesPerSample);
 
+            globalRunning = true;
             while (globalRunning)
             {
                 MSG message;
+
                 while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
                 {
                     if (message.message == WM_QUIT)
@@ -405,26 +420,72 @@ WinMain(HINSTANCE instance,
 
                         uint16_t stickX = pad->sThumbLX;
                         uint16_t stickY = pad->sThumbLY;
+                        
+                        xOffset += stickX >> 12;
                     }
                     else
                     {
                         // The controller is not available.
                     }
                 }
-                XINPUT_VIBRATION vibration;
-                vibration.wLeftMotorSpeed = 60000;
-                vibration.wRightMotorSpeed = 60000;
-                XInputSetState(0, &vibration);
-
-                renderWeirdGradient(&globalBackBuffer, xOffset, 0);
+                // ???
                 xOffset++;
 
-                HDC deviceContext = GetDC(window);
+                renderWeirdGradient(&globalBackBuffer, xOffset, 0);
+                
+                DWORD playCursor;
+                DWORD writeCursor;
+                // NOTE: directSound output test:
+                if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor))
+                {
+                    DWORD bytesToLock = runningSampleindex * bytesPerSample % secondaryBufferSize;
+                    DWORD bytesToWrite;
+                    if (bytesToLock > playCursor)
+                    {
+                        bytesToWrite = secondaryBufferSize - bytesToLock;
+                        bytesToWrite += playCursor;
+                    }
+                    else
+                    {
+                        bytesToWrite = playCursor - bytesToLock;
+                    }
+                    
+                    VOID *region1;
+                    DWORD region1Size;
+                    VOID *region2;
+                    DWORD region2Size;
+                    
+                    if (SUCCEEDED(globalSecondaryBuffer->Lock(bytesToLock,
+                                                              bytesToWrite,
+                                                              &region1, &region1Size,
+                                                              &region2, &region2Size,
+                                                              0))
+                    {
+                        DWORD region1SampleCount = region1Size/bytesPerSample;
+                        int16 *sampleOut = (int16 *) region1;
+                        for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++sampleIndex) 
+                        {
+                            int16 sampleValue = (runningSampleindex++ / halfSquareWavePeriod) % 2) ? 16000 : -16000;
+                            *sampleOut++ = sampleValue;
+                            *sampleOut++ = sampleValue;
+                        }
+                        
+                        DWORD region2SampleCount = region2Size/bytesPerSample;
+                        sampleOut = (int16 *) region2;
+                        for (DWORD sampleIndex = 0; sampleIndex < region2SampleCount; ++sampleIndex) 
+                        {
+                            int16 sampleValue = ((runningSampleindex++ / halfSquareWavePeriod) % 2) ? 16000 : -16000;
+                            *sampleOut++ = sampleValue;
+                            int secondaryBufferSize = samplesPerSec * bytesPerSample;
+                            *sampleOut++ = sampleValue;
+                        }
+                    }
+                }
+                
                 Win32_window_dimension dimension = Win32GetWindowDimension(window);
                 Win32DisplayBufferInWindow(&globalBackBuffer,
                                            deviceContext,
                                            dimension.width, dimension.height);
-                ReleaseDC(window, deviceContext);
 
             }
         }
