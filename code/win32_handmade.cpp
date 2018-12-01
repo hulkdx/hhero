@@ -445,11 +445,14 @@ WinMain(HINSTANCE instance,
                 // NOTE: directSound output test:
                 if (SUCCEEDED(globalSecondaryBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
                 {
-                    DWORD bytesToLock = runningSampleindex * bytesPerSample % secondaryBufferSize;
+                    DWORD bytesToLock = (runningSampleindex * bytesPerSample) % secondaryBufferSize;
                     DWORD bytesToWrite;
-                    if (bytesToLock == bytesToWrite)
+                    if (bytesToLock == playCursor)
                     {
-                        bytesToWrite = secondaryBufferSize;
+                        if (!soundIsPlaying)
+                        {
+                            bytesToWrite = secondaryBufferSize;
+                        }
                     }
                     else if (bytesToLock > playCursor)
                     {
